@@ -29,15 +29,18 @@ import okio.source
  * [SYSTEM] implementation, which uses the host machine's local file system. Alternate
  * implementations may be used to inject faults (for testing) or to transform stored data (to add
  * encryption, for example).
+ * 访问在分层数据存储上的读写文件。 大多数调用者应使用SYSTEM实现，该实现使用主机的本地文件系统。 备用实现可用于注入故障（用于测试）或转换存储的数据（例如，添加加密）。
  *
  * All operations on a file system are racy. For example, guarding a call to [source] with
  * [exists] does not guarantee that [FileNotFoundException] will not be thrown. The
  * file may be moved between the two calls!
+ * 文件系统上的所有操作都是正常的。 例如，保护存在的对源的调用并不能保证不会引发FileNotFoundException。 该文件可能会在两个调用之间移动！
  *
  * This interface is less ambitious than [java.nio.file.FileSystem] introduced in Java 7.
  * It lacks important features like file watching, metadata, permissions, and disk space
  * information. In exchange for these limitations, this interface is easier to implement and works
  * on all versions of Java and Android.
+ * 此接口比Java 7中引入的java.nio.file.FileSystem雄心勃勃。它缺少诸如文件监视，元数据，权限和磁盘空间信息之类的重要功能。 作为这些限制的交换，此接口更易于实现，并且可以在所有Java和Android版本上使用。
  */
 interface FileSystem {
 

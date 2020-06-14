@@ -15,6 +15,8 @@
  */
 package okhttp3.internal.io;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -24,10 +26,11 @@ import okio.Buffer;
 import okio.ForwardingSink;
 import okio.Sink;
 import okio.Source;
-
+/** 模拟文件系统故障，如某一目录不可读写 */
 public final class FaultyFileSystem implements FileSystem {
   private final FileSystem delegate;
   private final Set<File> writeFaults = new LinkedHashSet<>();
+  /** 不可以删除的文件 */
   private final Set<File> deleteFaults = new LinkedHashSet<>();
   private final Set<File> renameFaults = new LinkedHashSet<>();
 
@@ -43,6 +46,11 @@ public final class FaultyFileSystem implements FileSystem {
     }
   }
 
+  /**
+   * 设置文件不可删除，删除会抛io异常
+   * @param file 目标文件
+   * @param faulty ture添加，false移除
+   */
   public void setFaultyDelete(File file, boolean faulty) {
     if (faulty) {
       deleteFaults.add(file);
@@ -59,37 +67,38 @@ public final class FaultyFileSystem implements FileSystem {
     }
   }
 
-  @Override public Source source(File file) throws FileNotFoundException {
+  @Override public Source source(@NotNull File file) throws FileNotFoundException {
     return delegate.source(file);
   }
 
-  @Override public Sink sink(File file) throws FileNotFoundException {
+  @Override public Sink sink(@NotNull File file) throws FileNotFoundException {
     return new FaultySink(delegate.sink(file), file);
   }
 
-  @Override public Sink appendingSink(File file) throws FileNotFoundException {
+  @Override public Sink appendingSink(@NotNull File file) throws FileNotFoundException {
     return new FaultySink(delegate.appendingSink(file), file);
   }
 
-  @Override public void delete(File file) throws IOException {
+  @Override public void delete(@NotNull File file) throws IOException {
     if (deleteFaults.contains(file)) throw new IOException("boom!");
     delegate.delete(file);
   }
 
-  @Override public boolean exists(File file) {
+  @Override public boolean exists(@NotNull File file) {
     return delegate.exists(file);
   }
 
-  @Override public long size(File file) {
+  @Override public long size(@NotNull File file) {
     return delegate.size(file);
   }
 
-  @Override public void rename(File from, File to) throws IOException {
+  @Override public void rename(@NotNull File from, @NotNull File to) throws IOException {
     if (renameFaults.contains(from) || renameFaults.contains(to)) throw new IOException("boom!");
     delegate.rename(from, to);
   }
 
-  @Override public void deleteContents(File directory) throws IOException {
+  /** 删除文件 */
+  @Override public void deleteContents(@NotNull File directory) throws IOException {
     if (deleteFaults.contains(directory)) throw new IOException("boom!");
     delegate.deleteContents(directory);
   }

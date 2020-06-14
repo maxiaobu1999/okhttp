@@ -37,15 +37,16 @@ import okio.Source
 import okio.Timeout
 import okio.buffer
 
-/** Serves requests from the cache and writes responses to the cache. */
+/** 缓存拦截器，请求体&响应体写入缓存 */
 class CacheInterceptor(internal val cache: Cache?) : Interceptor {
 
   @Throws(IOException::class)
   override fun intercept(chain: Interceptor.Chain): Response {
-    val cacheCandidate = cache?.get(chain.request())
+    // 缓存response，默认cache为null,可以配置cache,不为空尝试获取缓存中的response
+    val cacheCandidate:Response? = cache?.get(chain.request())
 
     val now = System.currentTimeMillis()
-
+    // 缓存策略，用于判断怎样使用缓存。根据response,time,request创建
     val strategy = CacheStrategy.Factory(now, chain.request(), cacheCandidate).compute()
     val networkRequest = strategy.networkRequest
     val cacheResponse = strategy.cacheResponse
@@ -57,12 +58,12 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
       cacheCandidate.body?.closeQuietly()
     }
 
-    // If we're forbidden from using the network and the cache is insufficient, fail.
+    // 如果缓存策略中禁止使用网络，并且没有缓存，则为失败，构建一个Resposne直接返回，注意返回码=504
     if (networkRequest == null && cacheResponse == null) {
       return Response.Builder()
           .request(chain.request())
           .protocol(Protocol.HTTP_1_1)
-          .code(HTTP_GATEWAY_TIMEOUT)
+          .code(HTTP_GATEWAY_TIMEOUT) // 504
           .message("Unsatisfiable Request (only-if-cached)")
           .body(EMPTY_RESPONSE)
           .sentRequestAtMillis(-1L)
@@ -70,7 +71,7 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
           .build()
     }
 
-    // If we don't need the network, we're done.
+    // 不使用网络，但是有缓存，直接返回缓存
     if (networkRequest == null) {
       return cacheResponse!!.newBuilder()
           .cacheResponse(stripBody(cacheResponse))
@@ -79,17 +80,22 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
 
     var networkResponse: Response? = null
     try {
+      // 走后续拦截器
       networkResponse = chain.proceed(networkRequest)
     } finally {
-      // If we're crashing on I/O or otherwise, don't leak the cache body.
+      // 避免crash引起cacheCandidate.body内存泄漏.
       if (networkResponse == null && cacheCandidate != null) {
         cacheCandidate.body?.closeQuietly()
       }
     }
 
     // If we have a cache response too, then we're doing a conditional get.
+    // 当缓存响应和网络响应同时存在的时候，选择用哪个
     if (cacheResponse != null) {
       if (networkResponse?.code == HTTP_NOT_MODIFIED) {
+        // 如果返回码是304，客户端有缓冲的文档并发出了一个条件性的请求（一般是提供If-Modified-Since头表示客户
+        // 只想比指定日期更新的文档）。服务器告诉客户，原来缓冲的文档还可以继续使用。
+        // 则使用缓存的响应
         val response = cacheResponse.newBuilder()
             .headers(combine(cacheResponse.headers, networkResponse.headers))
             .sentRequestAtMillis(networkResponse.sentRequestAtMillis)
@@ -110,18 +116,22 @@ class CacheInterceptor(internal val cache: Cache?) : Interceptor {
       }
     }
 
+    // 使用网络响应
     val response = networkResponse!!.newBuilder()
         .cacheResponse(stripBody(cacheResponse))
         .networkResponse(stripBody(networkResponse))
         .build()
-
+    // 所以默认创建的OkHttpClient是没有缓存的
     if (cache != null) {
+      // 将响应缓存
       if (response.promisesBody() && CacheStrategy.isCacheable(response, networkRequest)) {
         // Offer this request to the cache.
+        // 缓存Resposne的Header信息
         val cacheRequest = cache.put(response)
+        // 缓存body
         return cacheWritingResponse(cacheRequest, response)
       }
-
+      // 只能缓存GET....不然移除request
       if (HttpMethod.invalidatesCache(networkRequest.method)) {
         try {
           cache.remove(networkRequest)

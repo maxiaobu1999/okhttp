@@ -22,7 +22,6 @@ import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509TrustManager
 import okhttp3.Protocol
 import okhttp3.internal.platform.AndroidPlatform.Companion.isAndroid
-import okhttp3.internal.platform.Platform
 
 /**
  * Simple non-reflection SocketAdapter for Android Q.
@@ -40,11 +39,14 @@ class Android10SocketAdapter : SocketAdapter {
 
   override fun isSupported(): Boolean = Companion.isSupported()
 
-  override fun getSelectedProtocol(sslSocket: SSLSocket): String? =
-      when (val protocol = sslSocket.applicationProtocol) {
-        null, "" -> null
-        else -> protocol
-      }
+//  override fun getSelectedProtocol(sslSocket: SSLSocket): String? =
+//      when (val protocol = sslSocket.applicationProtocol) {
+//        null, "" -> null
+//        else -> protocol
+//      }
+override fun getSelectedProtocol(sslSocket: SSLSocket): String? {
+  TODO("Not yet implemented")
+}
 
   override fun configureTlsExtensions(
     sslSocket: SSLSocket,
@@ -56,7 +58,7 @@ class Android10SocketAdapter : SocketAdapter {
     val sslParameters = sslSocket.sslParameters
 
     // Enable ALPN.
-    sslParameters.applicationProtocols = Platform.alpnProtocolNames(protocols).toTypedArray()
+//    sslParameters.applicationProtocols = Platform.alpnProtocolNames(protocols).toTypedArray()
 
     sslSocket.sslParameters = sslParameters
   }
